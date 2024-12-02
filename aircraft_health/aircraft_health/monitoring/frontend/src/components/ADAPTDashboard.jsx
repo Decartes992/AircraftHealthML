@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Form, Spinner, Alert, Nav, Tab } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Spinner, Alert, Nav } from 'react-bootstrap';
 import { ResponsiveLine } from '@nivo/line';
 import Papa from 'papaparse';
 
@@ -10,7 +10,6 @@ const ADAPTDashboard = () => {
     const [experimentInfo, setExperimentInfo] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [activeTab, setActiveTab] = useState('voltage');
 
     // Helper function to parse experiment info from raw string
     const parseExperimentInfo = (rawInfo) => {
@@ -177,17 +176,21 @@ const ADAPTDashboard = () => {
         return sensorDataByType;
     };
 
-    const renderSensorChart = (data, title, yAxisLabel) => {
+    const renderSensorChart = (data, title, yAxisLabel, height = '300px') => {
+        if (!data || Object.keys(data).length === 0) {
+            return <div className="text-white text-center">No data available</div>;
+        }
+    
         const chartData = Object.entries(data).map(([sensor, values]) => ({
             id: sensor,
             data: values
         }));
-
+    
         return (
-            <div style={{ height: '400px' }}>
+            <div style={{ height: height }} className="chart-container">
                 <ResponsiveLine
                     data={chartData}
-                    margin={{ top: 50, right: 150, bottom: 50, left: 60 }}
+                    margin={{ top: 20, right: 120, bottom: 40, left: 50 }}
                     xScale={{
                         type: 'time',
                         format: 'time',
@@ -197,18 +200,22 @@ const ADAPTDashboard = () => {
                     yScale={{
                         type: 'linear',
                         stacked: false,
+                        min: 'auto',
+                        max: 'auto',
                     }}
                     axisLeft={{
                         legend: yAxisLabel,
                         legendOffset: -40,
-                        legendPosition: 'middle'
+                        legendPosition: 'middle',
+                        textColor: '#ffffff'
                     }}
                     axisBottom={{
                         format: '%H:%M:%S',
                         legend: 'Time',
-                        legendOffset: 36,
+                        legendOffset: 35,
                         legendPosition: 'middle',
-                        tickValues: 'every 30 seconds'
+                        tickRotation: -45,
+                        textColor: '#ffffff'
                     }}
                     enablePoints={false}
                     enableGridX={true}
@@ -216,6 +223,52 @@ const ADAPTDashboard = () => {
                     enableCrosshair={true}
                     useMesh={true}
                     animate={false}
+                    colors={{ scheme: 'category10' }}
+                    theme={{
+                        axis: {
+                            domain: {
+                                line: {
+                                    stroke: '#ffffff',
+                                    strokeWidth: 1
+                                }
+                            },
+                            legend: {
+                                text: {
+                                    fill: '#ffffff',
+                                    fontSize: 12
+                                }
+                            },
+                            ticks: {
+                                line: {
+                                    stroke: '#ffffff',
+                                    strokeWidth: 1
+                                },
+                                text: {
+                                    fill: '#ffffff',
+                                    fontSize: 11
+                                }
+                            }
+                        },
+                        grid: {
+                            line: {
+                                stroke: '#444444',
+                                strokeWidth: 1
+                            }
+                        },
+                        legends: {
+                            text: {
+                                fill: '#ffffff',
+                                fontSize: 11
+                            }
+                        },
+                        tooltip: {
+                            container: {
+                                background: '#333333',
+                                color: '#ffffff',
+                                fontSize: 12
+                            }
+                        }
+                    }}
                     legends={[
                         {
                             anchor: 'right',
@@ -223,10 +276,11 @@ const ADAPTDashboard = () => {
                             justify: false,
                             translateX: 100,
                             translateY: 0,
-                            itemsSpacing: 0,
+                            itemsSpacing: 2,
                             itemDirection: 'left-to-right',
-                            itemWidth: 140,
+                            itemWidth: 100,
                             itemHeight: 20,
+                            itemOpacity: 0.85,
                             symbolSize: 12,
                             symbolShape: 'circle'
                         }
@@ -237,181 +291,193 @@ const ADAPTDashboard = () => {
     };
 
     return (
-        <Container fluid className="p-4">
-            {/* Header */}
-            <Row className="mb-4">
-                <Col>
-                    <h1>ADAPT Dataset Dashboard</h1>
-                </Col>
-            </Row>
-
-            {/* Experiment Selector */}
-            <Row className="mb-4">
-                <Col>
-                    <Card>
-                        <Card.Body>
-                            <Form.Group>
-                                <Form.Label>Select Experiment</Form.Label>
-                                <Form.Control 
-                                    as="select"
-                                    value={selectedExperiment || ''}
-                                    onChange={(e) => setSelectedExperiment(e.target.value)}
-                                >
-                                    <option value="">Choose an experiment...</option>
-                                    {experiments.map(exp => (
-                                        <option key={exp} value={exp}>{exp}</option>
-                                    ))}
-                                </Form.Control>
-                            </Form.Group>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Loading Spinner */}
-            {loading && (
-                <Row className="mb-4">
-                    <Col className="text-center">
-                        <Spinner animation="border" />
-                    </Col>
-                </Row>
-            )}
-
-            {/* Error Alert */}
-            {error && (
+        <div className="min-h-screen bg-gray-900 text-white">
+            <Container fluid className="p-4">
+                {/* Header */}
                 <Row className="mb-4">
                     <Col>
-                        <Alert variant="danger">{error}</Alert>
+                        <h1 className="text-2xl font-bold">ADAPT Dataset Dashboard</h1>
                     </Col>
                 </Row>
-            )}
 
-            {/* Updated Experiment Information card */}
-            {experimentInfo && (
+                {/* Experiment Selector */}
                 <Row className="mb-4">
                     <Col>
-                        <Card className="border-info">
-                            <Card.Header className="bg-info text-white">
-                                <h5 className="mb-0">Experiment Information</h5>
-                            </Card.Header>
+                        <Card className="bg-gray-800 border-gray-700">
                             <Card.Body>
-                                <Row>
-                                    <Col md={4}>
-                                        <div className="mb-3">
-                                            <strong>Time Period:</strong>
-                                            <div>{experimentInfo.startTime} to {experimentInfo.endTime}</div>
-                                        </div>
-                                        <div className="mb-3">
-                                            <strong>Operation:</strong>
-                                            <div>Code: {experimentInfo.operationCode}</div>
-                                            <div>Mode: {experimentInfo.operationMode}</div>
-                                        </div>
-                                    </Col>
-                                    <Col md={4}>
-                                        <div className="mb-3">
-                                            <strong>Fault Information:</strong>
-                                            <div>Type: {experimentInfo.faultType}</div>
-                                            <div>Mode: {experimentInfo.faultMode}</div>
-                                            <div>Location: {experimentInfo.faultLocation}</div>
-                                            <div>Injection: {experimentInfo.faultInjection}</div>
-                                        </div>
-                                    </Col>
-                                    <Col md={4}>
-                                        <div className="mb-3">
-                                            <strong>Test Article:</strong>
-                                            <div>{experimentInfo.testArticle}</div>
-                                        </div>
-                                        <div className="mb-3">
-                                            <strong>Comments:</strong>
-                                            <div>{experimentInfo.comments}</div>
-                                        </div>
-                                    </Col>
-                                </Row>
+                                <Form.Group>
+                                    <Form.Label className="text-white">Select Experiment</Form.Label>
+                                    <Form.Select 
+                                        value={selectedExperiment || ''}
+                                        onChange={(e) => setSelectedExperiment(e.target.value)}
+                                        className="bg-gray-700 text-white border-gray-600"
+                                    >
+                                        <option value="">Choose an experiment...</option>
+                                        {experiments.map(exp => (
+                                            <option key={exp} value={exp}>{exp}</option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
                             </Card.Body>
                         </Card>
                     </Col>
                 </Row>
-            )}
 
-            {/* Sensor Data Visualization */}
-            {sensorData && (
-                <Row>
-                    <Col>
-                        <Card>
-                            <Card.Header>
-                                <Nav variant="tabs" className="card-header-tabs">
-                                    <Nav.Item>
-                                        <Nav.Link 
-                                            active={activeTab === 'voltage'} 
-                                            onClick={() => setActiveTab('voltage')}
-                                        >
-                                            Voltage Sensors
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                    <Nav.Item>
-                                        <Nav.Link 
-                                            active={activeTab === 'current'} 
-                                            onClick={() => setActiveTab('current')}
-                                        >
-                                            Current Sensors
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                    <Nav.Item>
-                                        <Nav.Link 
-                                            active={activeTab === 'relay'} 
-                                            onClick={() => setActiveTab('relay')}
-                                        >
-                                            Relay Status
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                    <Nav.Item>
-                                        <Nav.Link 
-                                            active={activeTab === 'temp'} 
-                                            onClick={() => setActiveTab('temp')}
-                                        >
-                                            Temperature
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                    <Nav.Item>
-                                        <Nav.Link 
-                                            active={activeTab === 'flow'} 
-                                            onClick={() => setActiveTab('flow')}
-                                        >
-                                            Flow Rate
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                    <Nav.Item>
-                                        <Nav.Link 
-                                            active={activeTab === 'load'} 
-                                            onClick={() => setActiveTab('load')}
-                                        >
-                                            Load
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                    <Nav.Item>
-                                        <Nav.Link 
-                                            active={activeTab === 'status'} 
-                                            onClick={() => setActiveTab('status')}
-                                        >
-                                            Status
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                </Nav>
-                            </Card.Header>
-                            <Card.Body>
-                                {activeTab === 'voltage' && renderSensorChart(sensorData.voltage, 'Voltage Sensors', 'Voltage (V)')}
-                                {activeTab === 'current' && renderSensorChart(sensorData.current, 'Current Sensors', 'Current (A)')}
-                                {activeTab === 'relay' && renderSensorChart(sensorData.relay, 'Relay Status', 'State')}
-                                {activeTab === 'temp' && renderSensorChart(sensorData.temp, 'Temperature Sensors', '°C')}
-                                {activeTab === 'flow' && renderSensorChart(sensorData.flow, 'Flow Rate Sensors', 'Flow Rate')}
-                                {activeTab === 'load' && renderSensorChart(sensorData.load, 'Load Sensors', 'Load')}
-                                {activeTab === 'status' && renderSensorChart(sensorData.status, 'Status Sensors', 'Status')}
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                </Row>
-            )}
-        </Container>
+                {/* Loading Spinner */}
+                {loading && (
+                    <Row className="mb-4">
+                        <Col className="text-center">
+                            <Spinner animation="border" variant="light" />
+                        </Col>
+                    </Row>
+                )}
+
+                {/* Error Alert */}
+                {error && (
+                    <Row className="mb-4">
+                        <Col>
+                            <Alert variant="danger">{error}</Alert>
+                        </Col>
+                    </Row>
+                )}
+
+                {/* Experiment Info */}
+                {experimentInfo && (
+                    <Row className="mb-4">
+                        <Col>
+                            <Card className="bg-gray-800 border-gray-700">
+                                <Card.Header className="bg-gray-700 text-white">
+                                    <h5 className="mb-0">Experiment Information</h5>
+                                </Card.Header>
+                                <Card.Body className="text-white">
+                                    <Row>
+                                        <Col md={4}>
+                                            <div className="mb-3">
+                                                <strong>Time Period:</strong>
+                                                <div>{experimentInfo.startTime} to {experimentInfo.endTime}</div>
+                                            </div>
+                                            <div className="mb-3">
+                                                <strong>Operation:</strong>
+                                                <div>Code: {experimentInfo.operationCode}</div>
+                                                <div>Mode: {experimentInfo.operationMode}</div>
+                                            </div>
+                                        </Col>
+                                        <Col md={4}>
+                                            <div className="mb-3">
+                                                <strong>Fault Information:</strong>
+                                                <div>Type: {experimentInfo.faultType}</div>
+                                                <div>Mode: {experimentInfo.faultMode}</div>
+                                                <div>Location: {experimentInfo.faultLocation}</div>
+                                                <div>Injection: {experimentInfo.faultInjection}</div>
+                                            </div>
+                                        </Col>
+                                        <Col md={4}>
+                                            <div className="mb-3">
+                                                <strong>Test Article:</strong>
+                                                <div>{experimentInfo.testArticle}</div>
+                                            </div>
+                                            <div className="mb-3">
+                                                <strong>Comments:</strong>
+                                                <div>{experimentInfo.comments}</div>
+                                            </div>
+                                        </Col>
+                                    </Row>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </Row>
+                )}
+
+                {/* Sensor Data Grid */}
+                {sensorData && (
+                    <Row>
+                        {/* Voltage Sensors */}
+                        <Col md={6} className="mb-4">
+                            <Card className="bg-gray-800 border-gray-700 h-100">
+                                <Card.Header className="bg-gray-700 text-white">
+                                    Voltage Sensors
+                                </Card.Header>
+                                <Card.Body>
+                                    {renderSensorChart(sensorData.voltage, 'Voltage Sensors', 'Voltage (V)', '250px')}
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        {/* Current Sensors */}
+                        <Col md={6} className="mb-4">
+                            <Card className="bg-gray-800 border-gray-700 h-100">
+                                <Card.Header className="bg-gray-700 text-white">
+                                    Current Sensors
+                                </Card.Header>
+                                <Card.Body>
+                                    {renderSensorChart(sensorData.current, 'Current Sensors', 'Current (A)', '250px')}
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        {/* Temperature Sensors */}
+                        <Col md={6} className="mb-4">
+                            <Card className="bg-gray-800 border-gray-700 h-100">
+                                <Card.Header className="bg-gray-700 text-white">
+                                    Temperature Sensors
+                                </Card.Header>
+                                <Card.Body>
+                                    {renderSensorChart(sensorData.temp, 'Temperature Sensors', '°C', '250px')}
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        {/* Flow Rate Sensors */}
+                        <Col md={6} className="mb-4">
+                            <Card className="bg-gray-800 border-gray-700 h-100">
+                                <Card.Header className="bg-gray-700 text-white">
+                                    Flow Rate Sensors
+                                </Card.Header>
+                                <Card.Body>
+                                    {renderSensorChart(sensorData.flow, 'Flow Rate Sensors', 'Flow Rate', '250px')}
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        {/* Relay Status */}
+                        <Col md={6} className="mb-4">
+                            <Card className="bg-gray-800 border-gray-700 h-100">
+                                <Card.Header className="bg-gray-700 text-white">
+                                    Relay Status
+                                </Card.Header>
+                                <Card.Body>
+                                    {renderSensorChart(sensorData.relay, 'Relay Status', 'State', '250px')}
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        {/* Load Sensors */}
+                        <Col md={6} className="mb-4">
+                            <Card className="bg-gray-800 border-gray-700 h-100">
+                                <Card.Header className="bg-gray-700 text-white">
+                                    Load Sensors
+                                </Card.Header>
+                                <Card.Body>
+                                    {renderSensorChart(sensorData.load, 'Load Sensors', 'Load', '250px')}
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        {/* Status Sensors - Full Width */}
+                        <Col md={12}>
+                            <Card className="bg-gray-800 border-gray-700">
+                                <Card.Header className="bg-gray-700 text-white">
+                                    Status Sensors
+                                </Card.Header>
+                                <Card.Body>
+                                    {renderSensorChart(sensorData.status, 'Status Sensors', 'Status', '250px')}
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </Row>
+                )}
+            </Container>
+        </div>
     );
 };
 

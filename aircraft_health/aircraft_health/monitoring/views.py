@@ -40,5 +40,5 @@ def get_experiment_data(request, experiment_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
     
-    def home_view(request):
-        return render(request, 'home.html')
+def home_view(request):
+    return render(request, 'monitoring/home.html')

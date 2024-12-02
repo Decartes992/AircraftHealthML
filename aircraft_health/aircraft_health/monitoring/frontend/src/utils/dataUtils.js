@@ -1,5 +1,5 @@
 export const loadProcessedData = async (filename) => {
-    const response = await fetch(`../data/ADAPT/processed/${filename}`);
+    const response = await fetch(`../../../ml_models/data/ADAPT/processed/${filename}`);
     const text = await response.text();
     return text;
   };

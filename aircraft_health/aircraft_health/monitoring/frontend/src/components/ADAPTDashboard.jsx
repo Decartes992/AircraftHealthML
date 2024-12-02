@@ -1,9 +1,7 @@
-// frontend/src/components/ADAPTDashboard.jsx
-
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Form, Spinner, Alert } from 'react-bootstrap';
 import { ResponsiveLine } from '@nivo/line';
-import axios from 'axios';
+import Papa from 'papaparse';
 
 const ADAPTDashboard = () => {
     const [experiments, setExperiments] = useState([]);
@@ -13,73 +11,73 @@ const ADAPTDashboard = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    // Load experiment list
     useEffect(() => {
-      // Load experiments when component mounts
-      const loadExperiments = async () => {
-          try {
-              // Get contents of the processed directory looking for processed CSV files
-              const directoryContents = await window.fs.readdir('../data/ADAPT/processed');
-              
-              // Filter for processed CSV files 
-              const experimentFiles = directoryContents
-                  .filter(filename => filename.startsWith('processed_'))
-                  // Create more readable names for display
-                  .map(filename => {
-                      // Remove 'processed_' prefix and '.csv' extension
-                      return filename.replace('processed_', '').replace('.csv', '');
-                  });
-  
-              console.log('Found experiments:', experimentFiles); // Debug line
-              setExperiments(experimentFiles);
-          } catch (error) {
-              console.error('Error loading experiment list:', error);
-              setError('Failed to load experiment list');
-          }
-      };
-  
-      loadExperiments();
-  }, []);
+        const loadExperiments = async () => {
+            try {
+                const response = await fetch('/api/experiments/');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                console.log('Found experiments:', data.experiments);
+                setExperiments(data.experiments);
+            } catch (error) {
+                console.error('Error loading experiment list:', error);
+                setError('Failed to load experiment list');
+            }
+        };
 
-    // Load experiment data
+        loadExperiments();
+    }, []);
+
+    // Load experiment data when selection changes
     useEffect(() => {
         const loadExperiment = async (filename) => {
             try {
                 setLoading(true);
                 setError(null);
 
-                // Load sensor data
-                const response = await window.fs.readFile(`processed_${filename}.csv`);
-                const text = new TextDecoder().decode(response);
+                const response = await fetch(`/api/experiments/${filename}/`);
+                const data = await response.json();
                 
-                // Parse CSV data
-                const lines = text.trim().split('\n');
-                const headers = lines[0].split(',');
-                const data = lines.slice(1).map(line => {
-                    const values = line.split(',');
-                    const obj = {};
-                    headers.forEach((header, i) => {
-                        obj[header] = values[i];
-                    });
-                    return obj;
-                });
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Parse sensor data
+                const sensorData = Papa.parse(data.sensor_data, {
+                    header: true,
+                    dynamicTyping: true
+                }).data;
 
                 // Transform data for visualization
-                const transformed = headers
-                    .filter(header => header !== 'Time')
+                const transformed = Object.keys(sensorData[0])
+                    .filter(key => key !== 'Time')
                     .map(sensor => ({
                         id: sensor,
-                        data: data.map(d => ({
+                        data: sensorData.map(d => ({
                             x: new Date(d.Time),
                             y: parseFloat(d[sensor])
                         }))
                     }));
 
                 setSensorData(transformed);
+
+                // Parse fault info
+                const faultInfo = Papa.parse(data.fault_info, {
+                    header: true,
+                    dynamicTyping: true
+                }).data[0];
+
+                setFaultInfo(faultInfo);
                 setLoading(false);
             } catch (error) {
                 setError('Error loading experiment data');
                 setLoading(false);
-                console.error(error);
+                console.error('Error details:', error);
             }
         };
 
@@ -90,12 +88,14 @@ const ADAPTDashboard = () => {
 
     return (
         <Container fluid className="p-4">
+            {/* Header */}
             <Row className="mb-4">
                 <Col>
                     <h1>ADAPT Dataset Dashboard</h1>
                 </Col>
             </Row>
 
+            {/* Experiment Selector */}
             <Row className="mb-4">
                 <Col>
                     <Card>
@@ -118,6 +118,7 @@ const ADAPTDashboard = () => {
                 </Col>
             </Row>
 
+            {/* Loading Spinner */}
             {loading && (
                 <Row className="mb-4">
                     <Col className="text-center">
@@ -126,6 +127,7 @@ const ADAPTDashboard = () => {
                 </Row>
             )}
 
+            {/* Error Alert */}
             {error && (
                 <Row className="mb-4">
                     <Col>
@@ -134,6 +136,7 @@ const ADAPTDashboard = () => {
                 </Row>
             )}
 
+            {/* Fault Information */}
             {faultInfo && (
                 <Row className="mb-4">
                     <Col>
@@ -162,6 +165,7 @@ const ADAPTDashboard = () => {
                 </Row>
             )}
 
+            {/* Sensor Data Visualization */}
             {sensorData.length > 0 && (
                 <Row>
                     <Col>

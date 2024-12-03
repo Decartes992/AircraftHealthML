@@ -1,4 +1,5 @@
 import csv
+from pathlib import Path
 from django.core.management.base import BaseCommand
 from monitoring.models import Flight, Stat
 
@@ -7,10 +8,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         # Load flight_header.csv
-        with open('monitoring/ml_models/data/NGAFID/raw/flight_header.csv', 'r') as file:
+        with open(Path('monitoring/ml_models/data/NGAFID/raw/flight_header.csv'), 'r') as file:
             reader = csv.DictReader(file)
             for row in reader:
-                flight, created = Flight.objects.get_or_create(
+                flight, created = Flight.objects.update_or_create(
                     master_index=row['Master Index'],
                     defaults={
                         'before_after': row['before_after'],
@@ -23,17 +24,26 @@ class Command(BaseCommand):
                 )
                 if created:
                     self.stdout.write(self.style.SUCCESS(f"Created Flight {flight.master_index}"))
+                else:
+                    self.stdout.write(self.style.SUCCESS(f"Updated Flight {flight.master_index}"))
 
         # Load stats.csv
-        with open('monitoring/ml_models/data/NGAFID/raw/stats.csv', 'r') as file:
+        stats_to_create = []
+        with open(Path('monitoring/ml_models/data/NGAFID/raw/stats.csv'), 'r') as file:
             reader = csv.DictReader(file)
             for row in reader:
-                flight = Flight.objects.get(master_index=row['Master Index'])
-                Stat.objects.create(
+                flight = Flight.objects.filter(master_index=row['Master Index']).first()
+                if not flight:
+                    self.stderr.write(f"Flight {row['Master Index']} not found. Skipping stat.")
+                    continue
+                stat = Stat(
                     flight=flight,
                     key=row['Key'],
                     value=row['Value']
                 )
-                self.stdout.write(self.style.SUCCESS(f"Added Stat to Flight {flight.master_index}"))
+                stats_to_create.append(stat)
+        
+        Stat.objects.bulk_create(stats_to_create)
+        self.stdout.write(self.style.SUCCESS(f"Added {len(stats_to_create)} Stats to Flights"))
 
         self.stdout.write(self.style.SUCCESS('Data loaded successfully'))

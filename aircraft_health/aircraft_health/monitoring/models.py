@@ -1,11 +1,11 @@
 from django.db import models
 
 class Flight(models.Model):
-    master_index = models.IntegerField(primary_key=True)
-    before_after = models.CharField(max_length=10)  # 'before', 'after', 'same'
-    date_diff = models.IntegerField()
-    flight_length = models.IntegerField()
-    label = models.CharField(max_length=255)
+    master_index = models.IntegerField(primary_key=True, db_index=True)
+    before_after = models.CharField(max_length=10, db_index=True)  # 'before', 'after', 'same'
+    date_diff = models.IntegerField(db_index=True)
+    flight_length = models.IntegerField(db_index=True)
+    label = models.CharField(max_length=255, db_index=True)
     hierarchy = models.CharField(max_length=255, blank=True, null=True)
     number_flights_before = models.IntegerField()
 

@@ -12,6 +12,9 @@ from rest_framework import status, generics, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Flight
 from .serializers import FlightSerializer
+import logging
+
+logger = logging.getLogger(__name__)
 
 def dashboard_view(request):
     return render(request, 'monitoring/dashboard.html', {
@@ -38,6 +41,15 @@ def get_experiment_data(request, experiment_id):
         
         if not file_path.exists():
             return JsonResponse({'error': f'File not found: {experiment_id}'}, status=404)
+
+        # Validate file format
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+                if len(lines) < 2:
+                    raise ValueError("File format invalid: Insufficient lines.")
+        except ValueError as ve:
+            return JsonResponse({'error': str(ve)}, status=400)
 
         # Read the raw file content
         with open(file_path, 'r') as f:
@@ -73,7 +85,7 @@ def get_experiment_data(request, experiment_id):
             'experiment_info': experiment_info
         })
     except Exception as e:
-        print(f"Error processing experiment data: {str(e)}")  # Debug print
+        logger.error(f"Error processing experiment data: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 class FlightListView(generics.ListAPIView):
@@ -91,7 +103,8 @@ class FlightDetailView(APIView):
             serializer = FlightSerializer(flight)
             return Response({'experiment_info': serializer.data})
         except Flight.DoesNotExist:
-            return Response({'error': 'Flight not found'}, status=status.HTTP_404_NOT_FOUND)
+            logger.error(f"Flight not found: {flight_id}")
+            return Response({'error': f'Flight {flight_id} not found'}, status=status.HTTP_404_NOT_FOUND)
 
 def home_view(request):
     return render(request, 'monitoring/home.html')

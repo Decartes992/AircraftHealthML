@@ -6,6 +6,12 @@ from pathlib import Path
 import pandas as pd
 import csv
 import os
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, generics, filters
+from django_filters.rest_framework import DjangoFilterBackend
+from .models import Flight
+from .serializers import FlightSerializer
 
 def dashboard_view(request):
     return render(request, 'monitoring/dashboard.html', {
@@ -69,6 +75,23 @@ def get_experiment_data(request, experiment_id):
     except Exception as e:
         print(f"Error processing experiment data: {str(e)}")  # Debug print
         return JsonResponse({'error': str(e)}, status=500)
+
+class FlightListView(generics.ListAPIView):
+    queryset = Flight.objects.prefetch_related('stats').all()
+    serializer_class = FlightSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
+    filterset_fields = ['before_after', 'label']
+    search_fields = ['label']
+    ordering_fields = ['date_diff', 'flight_length']
+
+class FlightDetailView(APIView):
+    def get(self, request, flight_id):
+        try:
+            flight = Flight.objects.prefetch_related('stats').get(master_index=flight_id)
+            serializer = FlightSerializer(flight)
+            return Response({'experiment_info': serializer.data})
+        except Flight.DoesNotExist:
+            return Response({'error': 'Flight not found'}, status=status.HTTP_404_NOT_FOUND)
 
 def home_view(request):
     return render(request, 'monitoring/home.html')

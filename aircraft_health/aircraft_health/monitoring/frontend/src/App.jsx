@@ -4,8 +4,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import ADAPTDashboard from './components/ADAPTDashboard';
-import LandingPage from './components/Landingpage';
+import LandingPage from './components/LandingPage'; // Corrected import statement
 import Navigation from './components/Navigation';
+import NGAFIDDashboard from './components/NGAFIDDashboard'; // Ensure correct import
 
 function App() {
     return (
@@ -14,6 +15,7 @@ function App() {
             <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/dashboard" element={<ADAPTDashboard />} />
+                <Route path="/ngafid-dashboard" element={<NGAFIDDashboard />} /> {/* Ensure this route is above the wildcard */}
                 {/* Fallback route for any other paths */}
                 <Route path="*" element={<LandingPage />} />
             </Routes>

@@ -233,7 +233,8 @@ const ADAPTDashboard = () => {
                     enableGridY={true}
                     enableCrosshair={true}
                     useMesh={true}
-                    animate={false}
+                    animate={true} /* Enable animations */
+                    motionConfig="gentle" /* Smooth animation transitions */
                     colors={{ scheme: 'category10' }}
                     theme={{
                         axis: {
@@ -280,22 +281,54 @@ const ADAPTDashboard = () => {
                             }
                         }
                     }}
+                    tooltip={({ point }) => (
+                        <div
+                            style={{
+                                background: "white",
+                                padding: "5px 10px",
+                                borderRadius: "3px",
+                                boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                                color: "#000",
+                            }}
+                        >
+                            <strong>{point.serieId}</strong>
+                            <br />
+                            Value: {point.data.yFormatted}
+                            <br />
+                            Time: {point.data.xFormatted}
+                        </div>
+                    )}
+                    onClick={(point) => {
+                        alert(`Sensor: ${point.serieId}\nValue: ${point.data.y}\nTime: ${point.data.xFormatted}`);
+                    }}
                     legends={[
                         {
-                            anchor: 'right',
-                            direction: 'column',
-                            justify: false,
+                            anchor: "bottom-right",
+                            direction: "column",
                             translateX: 100,
-                            translateY: 0,
-                            itemsSpacing: 2,
-                            itemDirection: 'left-to-right',
-                            itemWidth: 100,
+                            itemWidth: 80,
                             itemHeight: 20,
-                            itemOpacity: 0.85,
                             symbolSize: 12,
-                            symbolShape: 'circle'
-                        }
+                            symbolShape: "circle",
+                            onClick: (legendItem) => {
+                                const updatedVisibleCharts = { ...visibleCharts };
+                                const key = legendItem.id.toLowerCase().replace(' ', '');
+                                updatedVisibleCharts[key] = !updatedVisibleCharts[key];
+                                setVisibleCharts(updatedVisibleCharts);
+                            },
+                            effects: [
+                                {
+                                    on: "hover",
+                                    style: {
+                                        itemBackground: "rgba(0, 0, 0, .03)",
+                                        itemOpacity: 1
+                                    }
+                                }
+                            ]
+                        },
                     ]}
+                    ariaLabel={`${title} Line Chart`} /* Improve accessibility */
+                    ariaLive="polite"
                 />
             </div>
         );

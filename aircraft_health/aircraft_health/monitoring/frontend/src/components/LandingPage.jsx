@@ -180,14 +180,15 @@ const LandingPage = () => {
                 <Row className="justify-content-center">
                     <Col md={10} className="mb-4">
                         <Card
-                            className="shadow-lg border-0 bg-secondary"
+                            className="h-100 shadow-lg border-0 bg-secondary"
                             style={{
                                 transition: "transform 0.3s, box-shadow 0.3s",
-                                background: "linear-gradient(to right, #2d3748, #4a5568)",
+                                background: "linear-gradient(to right, #1f2937, #4b5563)",
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.transform = "scale(1.05)";
-                                e.currentTarget.style.boxShadow = "0 6px 12px rgba(0, 0, 0, 0.3)";
+                                e.currentTarget.style.boxShadow =
+                                    "0 6px 12px rgba(0, 0, 0, 0.3)";
                             }}
                             onMouseLeave={(e) => {
                                 e.currentTarget.style.transform = "scale(1)";
@@ -206,7 +207,7 @@ const LandingPage = () => {
                                                 variant="outline-light"
                                                 style={{
                                                     borderRadius: "8px",
-                                                    background: "#4a5568",
+                                                    background: "#2563eb",
                                                     border: "none",
                                                     color: "#fff",
                                                 }}

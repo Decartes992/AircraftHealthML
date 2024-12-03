@@ -35,14 +35,13 @@ const NGAFIDDashboard = () => {
                 setLoading(true);
                 setError(null);
                 const response = await fetch(`/api/ngafid/flight_data/${id}/`);
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                if (!response.ok) { // Check if response is OK
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to fetch experiment data');
                 }
-
+                const data = await response.json();
                 setExperimentInfo(data.experiment_info);
-                setMaintenanceData(processMaintenanceData(data.maintenance_data));
+                setMaintenanceData(processMaintenanceData(data.sensor_data)); // Ensure correct data field
                 setLoading(false);
             } catch (error) {
                 console.error('Error loading experiment data:', error);

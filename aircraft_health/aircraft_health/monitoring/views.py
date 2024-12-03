@@ -30,7 +30,7 @@ def get_experiment_list(request):
         files = [f.name for f in data_dir.glob("*.txt")]
         return JsonResponse({'experiments': files})
     except Exception as e:
-        print(f"Error in get_experiment_list: {str(e)}")  # Debug print
+        logger.error(f"Error in get_experiment_list: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
     
 def get_experiment_data(request, experiment_id):
@@ -89,7 +89,7 @@ def get_experiment_data(request, experiment_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 class FlightListView(generics.ListAPIView):
-    queryset = Flight.objects.prefetch_related('stats').all()
+    queryset = Flight.objects.prefetch_related('stats').all().order_by('master_index')  # Add ordering
     serializer_class = FlightSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
     filterset_fields = ['before_after', 'label']
@@ -105,6 +105,9 @@ class FlightDetailView(APIView):
         except Flight.DoesNotExist:
             logger.error(f"Flight not found: {flight_id}")
             return Response({'error': f'Flight {flight_id} not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def home_view(request):
     return render(request, 'monitoring/home.html')

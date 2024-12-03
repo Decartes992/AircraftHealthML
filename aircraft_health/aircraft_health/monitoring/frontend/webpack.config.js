@@ -43,7 +43,7 @@ module.exports = {
         port: 3000,
         hot: true,
         proxy: {
-            '/api': 'http://localhost:8000'
+            '/api': 'http://localhost:8000' // Proxy API requests to Django backend
         }
     }
 };

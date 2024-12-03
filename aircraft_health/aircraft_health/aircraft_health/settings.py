@@ -53,7 +53,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'your_project.middleware.JsonErrorMiddleware',
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -151,24 +150,22 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
         'file': {
-            'level': 'DEBUG',
+            'level': 'ERROR',
             'class': 'logging.FileHandler',
-            'filename': 'debug.log',
+            'filename': str(LOG_DIR / 'error.log'),
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
-            'level': 'WARNING',  # Use 'DEBUG' for development
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+        'monitoring': {
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': True,
         },
     },
 }
-
-if DEBUG:
-    LOGGING['loggers']['django']['level'] = 'DEBUG'
-else:
-    LOGGING['loggers']['django']['level'] = 'ERROR'

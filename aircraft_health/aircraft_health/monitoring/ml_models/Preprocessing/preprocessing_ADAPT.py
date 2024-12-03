@@ -183,6 +183,10 @@ class ADAPTPreprocessor:
         Returns:
             Tuple of (processed sensor DataFrame, fault information dict)
         """
+        file_path = self.raw_dir / filename
+        if not file_path.exists():
+            raise FileNotFoundError(f"Input file not found: {file_path}")
+
         # Load raw data
         raw_df = self.load_experiment(filename)
         
@@ -213,13 +217,12 @@ class ADAPTPreprocessor:
             try:
                 logger.info(f"Processing {file.name}")
                 self.preprocess_experiment(file.name)
+            except FileNotFoundError as e:
+                logger.error(f"Error: {e}")
             except Exception as e:
                 logger.error(f"Error processing {file.name}: {str(e)}")
                 continue
 
-def main():
-    """Main execution function"""
-    
 def main():
     """Main execution function"""
     current_file = os.path.abspath(__file__)

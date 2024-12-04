@@ -67,44 +67,24 @@ class ADAPTPreprocessor:
             # Read data with tab delimiter, skipping metadata
             df = pd.read_csv(file_path, delimiter='\t', skiprows=1, header=0, encoding='utf-8')  # Adjusted skiprows and header
             
-            # Print columns for debugging
-            logger.info(f"Columns in DataFrame: {df.columns.tolist()}")
-            
             if 'Time' not in df.columns:
                 # Try alternative column names
                 time_columns = [col for col in df.columns if 'time' in col.lower()]
                 if time_columns:
-                    df = df.rename(columns={time_columns[0]: 'Time'})
+                    df.rename(columns={time_columns[0]: 'Time'}, inplace=True)
                 else:
                     raise KeyError("No time column found in the data")
             
-            # Print first few rows for debugging
-            logger.info(f"First few rows of Time column:\n{df['Time'].head()}")
-            
-            try:
-                # Convert timestamp with error handling
-                df['Time'] = pd.to_datetime(df['Time'], 
-                                        format='%Y-%m-%d %H:%M:%S.%f %Z',
-                                        errors='coerce')
-            except ValueError as e:
-                logger.warning(f"Error converting time with initial format, trying alternative: {str(e)}")
-                # Try alternative format without timezone
-                df['Time'] = pd.to_datetime(df['Time'], 
-                                        format='%Y-%m-%d %H:%M:%S.%f',
-                                        errors='coerce')
-            
-            # Check for any NaT values after conversion
-            if df['Time'].isna().any():
-                logger.warning("Some timestamp conversions resulted in NaT values")
-                
-            logger.info(f"Successfully loaded {filename}")
-            return df
-            
-        except Exception as e:
-            logger.error(f"Error loading {filename}: {str(e)}")
-            logger.error(f"Full error details:", exc_info=True)
-            raise
+            # Convert time column dynamically
+            df['Time'] = pd.to_datetime(df['Time'], errors='coerce')
 
+            if df['Time'].isna().any():
+                logger.warning(f"Some timestamps in {filename} could not be converted.")
+
+            return df
+        except Exception as e:
+            logger.error(f"Error loading {filename}: {e}")
+            raise
 
     def extract_fault_info(self, df: pd.DataFrame) -> Dict:
         """
@@ -125,21 +105,19 @@ class ADAPTPreprocessor:
         }
         
         # Find FaultInject rows
-        fault_rows = df[df['SensorData'] == 'FaultInject']
+        fault_rows = df[df['SensorData'].str.contains('FaultInject', na=False)]
         
         if not fault_rows.empty:
             fault_row = fault_rows.iloc[0]
             
             # Extract fault information
-            fault_info['time'] = fault_row['Time']
-            fault_info['component'] = next((col for col in fault_row.index 
-                                          if not pd.isna(fault_row[col]) and 
-                                          col.startswith(('E', 'ESH', 'ISH'))), None)
-            fault_info['type'] = fault_row['FaultType'] if 'FaultType' in fault_row else None
-            fault_info['location'] = fault_row['FaultLocation'] if 'FaultLocation' in fault_row else None
+            fault_info['time'] = pd.to_datetime(fault_row.get('Time', None), errors='coerce')
+            fault_info['component'] = fault_row.get('FaultLocation', 'Unknown')
+            fault_info['type'] = fault_row.get('FaultType', 'Unknown')
+            fault_info['location'] = fault_row.get('FaultLocation', 'Unknown')
             
             # Calculate duration if experiment end time exists
-            if not df.empty:
+            if not df.empty and fault_info['time']:
                 fault_info['duration'] = (df['Time'].max() - fault_info['time']).total_seconds()
         
         return fault_info
@@ -154,26 +132,20 @@ class ADAPTPreprocessor:
         Returns:
             DataFrame containing processed sensor data
         """
-        # Filter antagonist data (actual sensor readings)
         sensor_data = df[df['SensorData'] == 'AntagonistData'].copy()
-        
-        # Get sensor columns
-        sensor_cols = [col for col in sensor_data.columns 
-                      if any(col.startswith(prefix) for prefix in self.sensor_prefixes.keys())]
-        
-        # Keep time and sensor columns
-        processed_data = sensor_data[['Time'] + sensor_cols]
-        
-        # Convert sensor readings to float where possible
+
+        sensor_cols = [col for col in sensor_data.columns if col.startswith('E')]
+        processed_data = sensor_data[['Time'] + sensor_cols].copy()
+
         for col in sensor_cols:
             processed_data[col] = pd.to_numeric(processed_data[col], errors='coerce')
-            
-        # Forward fill missing values
-        processed_data = processed_data.ffill()
-        
+            processed_data[col] = processed_data[col].fillna(
+                processed_data[col].rolling(5, min_periods=1).mean()
+            )
+
         return processed_data
 
-    def preprocess_experiment(self, filename: str) -> Tuple[pd.DataFrame, Dict]:
+    def preprocess_experiment(self, filename: str) -> Optional[pd.DataFrame]:
         """
         Main preprocessing function for a single experiment
         
@@ -181,47 +153,79 @@ class ADAPTPreprocessor:
             filename: Name of experiment file
             
         Returns:
-            Tuple of (processed sensor DataFrame, fault information dict)
+            Processed sensor DataFrame or None if processing fails
         """
-        file_path = self.raw_dir / filename
-        if not file_path.exists():
-            raise FileNotFoundError(f"Input file not found: {file_path}")
+        try:
+            logger.info(f"Processing file: {filename}")
+            raw_df = self.load_experiment(filename)
 
-        # Load raw data
-        raw_df = self.load_experiment(filename)
+            # Extract fault information
+            fault_info = self.extract_fault_info(raw_df)
+
+            # Process sensor data
+            processed_df = self.process_sensor_data(raw_df)
+
+            # Save processed data
+            processed_path = self.processed_dir / f"processed_{filename.replace('.txt', '.csv')}"
+            processed_df.to_csv(processed_path, index=False)
+
+            # Save fault info
+            fault_info_df = pd.DataFrame([fault_info])
+            fault_info_path = self.processed_dir / f"fault_info_{filename.replace('.txt', '.csv')}"
+            fault_info_df.to_csv(fault_info_path, index=False)
+
+            logger.info(f"Processed data saved to {processed_path}")
+
+            # Generate summary statistics for the individual experiment
+            self.summarize_experiment(processed_df, filename)
+
+            return processed_df
+        except Exception as e:
+            logger.error(f"Failed to preprocess {filename}: {e}")
+            return None
+
+    def summarize_experiment(self, processed_df: pd.DataFrame, filename: str) -> None:
+        """
+        Generate and save summary statistics for a single experiment.
         
-        # Extract fault information
-        fault_info = self.extract_fault_info(raw_df)
-        
-        # Process sensor data
-        processed_df = self.process_sensor_data(raw_df)
-        
-        # Save processed data
-        output_filename = f"processed_{filename.replace('.txt', '.csv')}"
-        processed_df.to_csv(self.processed_dir / output_filename, index=False)
-        
-        # Save fault info
-        fault_info_df = pd.DataFrame([fault_info])
-        fault_info_df.to_csv(self.processed_dir / f"fault_info_{filename.replace('.txt', '.csv')}", 
-                            index=False)
-        
-        logger.info(f"Processed data saved to {output_filename}")
-        
-        return processed_df, fault_info
+        Args:
+            processed_df: Processed DataFrame for the experiment.
+            filename: Original filename of the experiment.
+        """
+        try:
+            summary = processed_df.describe()
+            summary_path = self.processed_dir / f"summary_{filename.replace('.txt', '.csv')}"
+            summary.to_csv(summary_path)
+            logger.info(f"Summary statistics for {filename} saved to {summary_path}")
+        except Exception as e:
+            logger.error(f"Failed to summarize {filename}: {e}")
 
     def preprocess_all_experiments(self) -> None:
         """Process all raw experiment files in the raw directory"""
+        all_processed_data = []
         raw_files = list(self.raw_dir.glob('*.txt'))
-        
+
         for file in raw_files:
-            try:
-                logger.info(f"Processing {file.name}")
-                self.preprocess_experiment(file.name)
-            except FileNotFoundError as e:
-                logger.error(f"Error: {e}")
-            except Exception as e:
-                logger.error(f"Error processing {file.name}: {str(e)}")
-                continue
+            processed_data = self.preprocess_experiment(file.name)
+            if processed_data is not None:
+                all_processed_data.append(processed_data)
+            else:
+                logger.warning(f"Skipping {file.name} due to processing error.")
+
+        if all_processed_data:
+            self.summarize_statistics(all_processed_data)
+        else:
+            logger.warning("No valid data processed.")
+
+    def summarize_statistics(self, all_processed_data: List[pd.DataFrame]) -> None:
+        try:
+            combined_data = pd.concat(all_processed_data, ignore_index=True)
+            summary = combined_data.describe()
+            summary_path = self.processed_dir / "summary_statistics.csv"
+            summary.to_csv(summary_path)
+            logger.info(f"Summary statistics saved to {summary_path}")
+        except ValueError as e:
+            logger.error(f"Failed to summarize statistics: {e}")
 
 def main():
     """Main execution function"""
@@ -234,7 +238,7 @@ def main():
     
     preprocessor = ADAPTPreprocessor(data_dir=data_dir)
     
-    # Process all experiments
+    # Process all experiments and generate summary statistics
     preprocessor.preprocess_all_experiments()
 
 if __name__ == "__main__":

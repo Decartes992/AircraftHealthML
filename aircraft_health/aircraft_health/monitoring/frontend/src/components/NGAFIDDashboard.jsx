@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Form, Spinner, Alert, Button } from 'react-bootstrap';
-import { ResponsiveLine } from '@nivo/line';
+import Plot from 'react-plotly.js';
 import { LineChart } from 'lucide-react'; // Add icon library
 import './NGAFIDDashboard.css'; // Add CSS file
 
@@ -12,199 +12,122 @@ const NGAFIDDashboard = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [activeCategory, setActiveCategory] = useState('before');
+    const [labels, setLabels] = useState([]);
+    const [selectedLabel, setSelectedLabel] = useState('');
+    const [visualizationData, setVisualizationData] = useState(null);
+    const [insights, setInsights] = useState(null);
 
-    // Load flight data
+    // Fetch unique labels
     useEffect(() => {
-        const loadData = async () => {
-            try {
-                const response = await fetch('/api/ngafid/flight_data/');
-                const data = await response.json();
-                setExperiments(data.experiments);
-            } catch (error) {
-                console.error("Error loading NGAFID data:", error);
-                setError('Failed to load NGAFID data');
-            }
-        };
-        loadData();
+        console.log("Fetching unique labels");
+        fetch("/api/ngafid/unique_labels/")
+            .then((response) => response.json())
+            .then((data) => {
+                console.log("Unique labels fetched:", data);
+                setLabels(data);
+            })
+            .catch((error) => console.error("Error fetching labels:", error));
     }, []);
 
-    // Load selected experiment data
-    useEffect(() => {
-        const loadExperiment = async (id) => {
-            try {
-                setLoading(true);
-                setError(null);
-                const response = await fetch(`/api/ngafid/flight_data/${id}/`);
-                if (!response.ok) { // Check if response is OK
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to fetch experiment data');
-                }
-                const data = await response.json();
-                setExperimentInfo(data.experiment_info);
-                setMaintenanceData(processMaintenanceData(data.sensor_data)); // Ensure correct data field
-                setLoading(false);
-            } catch (error) {
-                console.error('Error loading experiment data:', error);
-                setError(`Error loading experiment data: ${error.message}`);
-                setLoading(false);
+    // Fetch flights by selected label and their visualizations
+    const fetchFlightData = async (label) => {
+        console.log(`Fetching flights for label: ${label}`);
+        try {
+            const response = await fetch(`/api/ngafid/grouped_flight_data/?label=${encodeURIComponent(label)}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Error fetching label data: ${response.status} - ${errorText}`);
+                throw new Error(`Error fetching label data: ${response.status}`);
             }
-        };
-
-        if (selectedExperiment) {
-            loadExperiment(selectedExperiment);
+            const data = await response.json();
+            console.log("Flights fetched for label:", data);
+            setVisualizationData(data);
+        } catch (error) {
+            console.error("Error fetching label data:", error);
+            setError(`Error fetching label data: ${error.message}`);
         }
-    }, [selectedExperiment]);
-
-    // Process maintenance data
-    const processMaintenanceData = (data) => {
-        const processedData = data.map(item => ({
-            before_after: item.before_after,
-            date_diff: item.date_diff,
-            flight_length: item.flight_length,
-            label: item.label,
-            number_flights_before: item.number_flights_before,
-        }));
-        return processedData;
     };
 
-    // Handle category change
-    const handleCategoryChange = (category) => {
-        setActiveCategory(category);
+    // Fetch insights for selected label
+    const fetchInsights = async (label) => {
+        console.log(`Fetching insights for label: ${label}`);
+        try {
+            const response = await fetch(`/api/ngafid/flight_insights/?label=${encodeURIComponent(label)}`);
+            const responseText = await response.text();
+            if (!response.ok) {
+                console.error(`Error fetching insights: ${response.status} - ${responseText}`);
+                throw new Error(`Error fetching insights: ${response.status}`);
+            }
+            try {
+                const data = JSON.parse(responseText);
+                console.log("Insights fetched for label:", data);
+                setInsights(data);
+            } catch (jsonError) {
+                console.error("Error parsing JSON:", jsonError);
+                throw new Error("Error parsing JSON response");
+            }
+        } catch (error) {
+            console.error("Error fetching insights:", error);
+            setError(`Error fetching insights: ${error.message}`);
+        }
     };
 
-    // Render maintenance chart
-    const renderMaintenanceChart = () => {
-        const filteredData = maintenanceData.filter(item => item.before_after === activeCategory);
-        const chartData = filteredData.map(item => ({
-            x: item.date_diff,
-            y: item.flight_length,
-            label: item.label,
-            number_flights_before: item.number_flights_before,
-        }));
+    useEffect(() => {
+        if (selectedLabel) {
+            console.log(`Selected label changed: ${selectedLabel}`);
+            fetchFlightData(selectedLabel);
+            fetchInsights(selectedLabel);
+        }
+    }, [selectedLabel]);
+
+    // Render scatter plot
+    const renderScatterPlot = () => {
+        if (!visualizationData || !visualizationData.scatter_data) {
+            return <p>No scatter data available.</p>;
+        }
 
         return (
-            <ResponsiveLine
-                data={[{
-                    id: activeCategory,
-                    data: chartData
-                }]}
-                margin={{ top: 20, right: 20, bottom: 50, left: 60 }}
-                xScale={{ type: 'point' }}
-                yScale={{ type: 'linear', min: 'auto', max: 'auto' }}
-                axisBottom={{ 
-                    legend: 'Date Difference', 
-                    legendOffset: 36, 
-                    legendPosition: 'middle',
-                    tickRotation: -45,
-                    tickPadding: 5,
-                    tickSize: 5,
-                    format: '%Y-%m-%d' // Adjust based on date format
-                }}
-                axisLeft={{ 
-                    legend: 'Flight Length (hrs)', 
-                    legendOffset: -50, 
-                    legendPosition: 'middle',
-                    tickPadding: 5,
-                    tickSize: 5
-                }}
-                enablePoints={false}
-                enableGridX={true}
-                enableGridY={true}
-                enableCrosshair={true}
-                useMesh={true}
-                animate={true}
-                motionConfig="gentle"
-                colors={{ scheme: 'category10' }}
-                theme={{
-                    axis: {
-                        domain: {
-                            line: {
-                                stroke: '#ffffff',
-                                strokeWidth: 1
-                            }
-                        },
-                        legend: {
-                            text: {
-                                fill: '#ffffff',
-                                fontSize: 12
-                            }
-                        },
-                        ticks: {
-                            line: {
-                                stroke: '#ffffff',
-                                strokeWidth: 1
-                            },
-                            text: {
-                                fill: '#ffffff',
-                                fontSize: 11
-                            }
-                        }
-                    },
-                    grid: {
-                        line: {
-                            stroke: '#444444',
-                            strokeWidth: 1
-                        }
-                    },
-                    legends: {
-                        text: {
-                            fill: '#ffffff',
-                            fontSize: 11
-                        }
-                    },
-                    tooltip: {
-                        container: {
-                            background: '#333333',
-                            color: '#ffffff',
-                            fontSize: 12
-                        }
-                    }
-                }}
-                tooltip={({ point }) => (
-                    <div
-                        style={{
-                            background: "white",
-                            padding: "5px 10px",
-                            borderRadius: "3px",
-                            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-                            color: "#000",
-                        }}
-                    >
-                        <strong>{point.serieId}</strong>
-                        <br />
-                        Date Diff: {point.data.xFormatted}
-                        <br />
-                        Flight Length: {point.data.yFormatted} hrs
-                    </div>
-                )}
-                onClick={(point) => {
-                    alert(`Category: ${activeCategory.toUpperCase()}\nDate Diff: ${point.data.xFormatted}\nFlight Length: ${point.data.yFormatted} hrs`);
-                }}
-                legends={[
+            <Plot
+                data={[
                     {
-                        anchor: "bottom-right",
-                        direction: "column",
-                        translateX: 100,
-                        itemWidth: 80,
-                        itemHeight: 20,
-                        symbolSize: 12,
-                        symbolShape: "circle",
-                        onClick: (legendItem) => {
-                            // Implement legend click if needed
-                        },
-                        effects: [
-                            {
-                                on: "hover",
-                                style: {
-                                    itemBackground: "rgba(0, 0, 0, .03)",
-                                    itemOpacity: 1
-                                }
-                            }
-                        ]
+                        x: visualizationData.scatter_data.map(item => item.x),
+                        y: visualizationData.scatter_data.map(item => item.y),
+                        mode: 'markers',
+                        type: 'scatter',
+                        marker: { color: 'blue' },
                     },
                 ]}
-                ariaLabel={`${activeCategory.toUpperCase()} Maintenance Line Chart`}
-                ariaLive="polite"
+                layout={{
+                    title: 'Flight Length vs Master Index',
+                    xaxis: { title: 'Master Index' },
+                    yaxis: { title: 'Flight Length (minutes)' },
+                }}
+                config={{ responsive: true }}
+            />
+        );
+    };
+
+    // Render histogram
+    const renderHistogram = () => {
+        if (!visualizationData || !visualizationData.histogram_data) {
+            return <p>No histogram data available.</p>;
+        }
+
+        return (
+            <Plot
+                data={[
+                    {
+                        x: visualizationData.histogram_data,
+                        type: 'histogram',
+                        marker: { color: '#3b82f6' },
+                    },
+                ]}
+                layout={{
+                    title: 'Flight Length Distribution',
+                    xaxis: { title: 'Flight Length (minutes)' },
+                    yaxis: { title: 'Frequency' },
+                }}
+                config={{ responsive: true }}
             />
         );
     };
@@ -237,13 +160,15 @@ const NGAFIDDashboard = () => {
                                         <Form.Group>
                                             <Form.Label className="mb-1">Select Flight or Maintenance Event</Form.Label>
                                             <Form.Select 
-                                                value={selectedExperiment || ''}
-                                                onChange={(e) => setSelectedExperiment(e.target.value)}
+                                                value={selectedLabel || ''}
+                                                onChange={(e) => setSelectedLabel(e.target.value)}
                                                 className="bg-dark text-white py-1"
                                             >
-                                                <option value="">Choose an event...</option>
-                                                {experiments.map(exp => (
-                                                    <option key={exp.master_index} value={exp.master_index}>{exp.label}</option>
+                                                <option value="">Choose a label...</option>
+                                                {labels.map((label, index) => (
+                                                    <option key={index} value={label.label}>
+                                                        {label.label} ({label.count})
+                                                    </option>
                                                 ))}
                                             </Form.Select>
                                         </Form.Group>
@@ -322,26 +247,43 @@ const NGAFIDDashboard = () => {
                 )}
 
                 {/* Maintenance Data Visualization Section */}
-                {maintenanceData && (
+                {visualizationData && (
                     <Card className="shadow-lg section-padding card-padding">
                         <Card.Body>
                             <h4 className="text-center mb-4" style={{ fontWeight: "bold" }}>
                                 Maintenance Data Visualizations
                             </h4>
                             <Row>
-                                {/* Flight Length vs Date Difference Chart */}
+                                {/* Scatter Plot */}
                                 <Col md={12} className="mb-3">
                                     <Card className="shadow-sm h-100 nested-card">
-                                        <Card.Header className="py-2">Flight Length vs Date Difference</Card.Header>
+                                        <Card.Header className="py-2">Flight Length vs Master Index</Card.Header>
                                         <Card.Body className="p-2">
-                                            {renderMaintenanceChart()}
+                                            {renderScatterPlot()}
                                         </Card.Body>
                                     </Card>
                                 </Col>
-                                {/* Additional charts can be added here */}
+                                {/* Histogram */}
+                                <Col md={12} className="mb-3">
+                                    <Card className="shadow-sm h-100 nested-card">
+                                        <Card.Header className="py-2">Flight Length Distribution</Card.Header>
+                                        <Card.Body className="p-2">
+                                            {renderHistogram()}
+                                        </Card.Body>
+                                    </Card>
+                                </Col>
                             </Row>
                         </Card.Body>
                     </Card>
+                )}
+
+                {insights && (
+                    <div>
+                        <h3>Flight Insights</h3>
+                        <p>Average Flight Length: {insights.average} minutes</p>
+                        <p>Max Flight Length: {insights.max} minutes</p>
+                        <p>Min Flight Length: {insights.min} minutes</p>
+                    </div>
                 )}
             </Container>
         </div>

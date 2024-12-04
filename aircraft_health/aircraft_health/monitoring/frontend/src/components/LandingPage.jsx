@@ -22,7 +22,7 @@ const LandingPage = () => {
                             <p className="lead mb-4">
                                 Advanced diagnostics and prognostics for aerospace systems using machine learning.
                             </p>
-                            <Link to="/dashboard">
+                            <Link to="/anomaly-dashboard">
                                 <Button
                                     variant="outline-light"
                                     size="lg"

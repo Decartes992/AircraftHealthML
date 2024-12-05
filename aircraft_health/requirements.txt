@@ -1,0 +1,10 @@
+djangorestframework
+django-filter
+pandas
+numpy
+torch
+scikit-learn
+plotly
+matplotlib
+seaborn
+joblib

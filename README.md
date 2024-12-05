@@ -44,7 +44,7 @@ AircraftHealthML is a machine learning project focused on integrated aircraft he
   - Recursive Feature Elimination (RFE)
   - Data Normalization and Fusion
 - **Programming and Tools**:
-  - Python, NumPy, Pandas, Matplotlib, Scikit-learn, TensorFlow, PyTorch
+  - Python, NumPy, Pandas, Matplotlib, Scikit-learn, PyTorch
 
 ## **Use Cases**
 - Early fault detection to prevent critical failures.

@@ -1,3 +1,0 @@
-djangorestframework
-django-filter
-// No additional dependencies needed.

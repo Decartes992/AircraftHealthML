@@ -28,12 +28,19 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 def dashboard_view(request):
+    """Renders the main dashboard HTML page."""
     return render(request, 'monitoring/dashboard.html', {
         'debug': settings.DEBUG
     })
 
 def get_experiment_list(request):
-    """API endpoint to get list of experiments"""
+    """
+    API endpoint to get a list of available experiment files from the ADAPT raw data directory.
+
+    Returns:
+        JsonResponse: A JSON response containing a list of experiment filenames.
+                      Returns an error message with status 500 if an exception occurs.
+    """
     try:
         # Update path to point to raw data
         data_dir = Path("monitoring/ml_models/data/ADAPT/raw")
@@ -43,9 +50,21 @@ def get_experiment_list(request):
     except Exception as e:
         logger.error(f"Error in get_experiment_list: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-    
+
 def get_experiment_data(request, experiment_id):
-    """API endpoint to get experiment data"""
+    """
+    API endpoint to get detailed data for a specific experiment.
+
+    Args:
+        request: The HTTP request object.
+        experiment_id (str): The filename of the experiment data to retrieve.
+
+    Returns:
+        JsonResponse: A JSON response containing the sensor data and experiment information.
+                      Returns an error message with status 404 if the file is not found,
+                      status 400 if the file format is invalid, or status 500 if an
+                      unexpected error occurs.
+    """
     try:
         data_dir = Path("monitoring/ml_models/data/ADAPT/raw")
         file_path = data_dir / experiment_id
@@ -96,6 +115,15 @@ def get_experiment_data(request, experiment_id):
 
 @api_view(['GET'])
 def get_unique_labels(request):
+    """
+    API endpoint to get a list of unique labels from the Flight model.
+
+    Args:
+        request: The HTTP request object.
+
+    Returns:
+        JsonResponse: A JSON response containing a list of unique labels.
+    """
     logger.debug("Fetching unique labels")
     labels = Flight.objects.values_list('label', flat=True).distinct()
     logger.debug(f"Unique labels fetched: {labels}")
@@ -103,14 +131,35 @@ def get_unique_labels(request):
 
 @api_view(['GET'])
 def filter_flights_by_label(request, label):
+    """
+    API endpoint to filter flights by a specific label.
+
+    Args:
+        request: The HTTP request object.
+        label (str): The label to filter flights by.
+
+    Returns:
+        JsonResponse: A JSON response containing a list of filtered flights.
+    """
     flights = Flight.objects.filter(label=label).values(
-        'master_index', 'before_after', 'date_diff', 'flight_length', 
+        'master_index', 'before_after', 'date_diff', 'flight_length',
         'number_flights_before', 'hierarchy', 'stats'
     )
     return JsonResponse(list(flights), safe=False)
 
 @api_view(['GET'])
 def flights_by_label(request, label):
+    """
+    API endpoint to retrieve flight data and generate visualizations for a specific label.
+
+    Args:
+        request: The HTTP request object.
+        label (str): The label to filter flights by.
+
+    Returns:
+        JsonResponse: A JSON response containing flight entries and base64 encoded visualizations.
+                      Returns an error message with status 500 if an exception occurs.
+    """
     try:
         logger.debug(f"Fetching flights for label: {label}")
         flights = Flight.objects.filter(label=label).values(
@@ -167,12 +216,33 @@ def flights_by_label(request, label):
 
 @api_view(['GET'])
 def flight_data_by_label(request, label):
+    """
+    API endpoint to get serialized flight data filtered by label.
+
+    Args:
+        request: The HTTP request object.
+        label (str): The label to filter flights by.
+
+    Returns:
+        Response: A DRF Response containing serialized flight data.
+    """
     flights = Flight.objects.filter(label=label).order_by('master_index')
     serialized_flights = FlightSerializer(flights, many=True)
     return Response(serialized_flights.data)
 
 @api_view(['GET'])
 def flight_insights(request, label):
+    """
+    API endpoint to get basic statistical insights for flights filtered by label.
+
+    Args:
+        request: The HTTP request object.
+        label (str): The label to filter flights by.
+
+    Returns:
+        JsonResponse: A JSON response containing average, max, and min flight lengths.
+                      Returns an error message with status 500 if an exception occurs.
+    """
     logger.debug(f"Fetching insights for label: {label}")
     try:
         flights = Flight.objects.filter(label=label)
@@ -197,6 +267,15 @@ def flight_insights(request, label):
 
 @api_view(['GET'])
 def grouped_flight_data(request):
+    """
+    API endpoint to get grouped flight data for visualization.
+
+    Args:
+        request: The HTTP request object containing the 'label' query parameter.
+
+    Returns:
+        Response: A DRF Response containing scatter and histogram data.
+    """
     label = request.query_params.get('label')
     flights = Flight.objects.filter(label=label)
 
@@ -211,11 +290,30 @@ def grouped_flight_data(request):
 
 @api_view(['GET'])
 def unique_labels(request):
+    """
+    API endpoint to get unique labels and their counts from the Flight model.
+
+    Args:
+        request: The HTTP request object.
+
+    Returns:
+        Response: A DRF Response containing a list of unique labels and their counts.
+    """
     labels = Flight.objects.values('label').annotate(count=Count('label'))
     return Response(labels)
 
 @api_view(['GET'])
 def preprocessed_flight_data(request, label):
+    """
+    API endpoint to get preprocessed flight data and insights for a specific label.
+
+    Args:
+        request: The HTTP request object.
+        label (str): The label to filter flights by.
+
+    Returns:
+        Response: A DRF Response containing scatter data, histogram data, and insights.
+    """
     flights = Flight.objects.filter(label=label)
     scatter_data = [{"x": f.master_index, "y": f.flight_length} for f in flights]
     histogram_data = [f.flight_length for f in flights]
@@ -234,7 +332,17 @@ def preprocessed_flight_data(request, label):
 
 @require_http_methods(["GET"])
 def get_anomaly_results(request):
-    """API endpoint to get anomaly detection results"""
+    """
+    API endpoint to get anomaly detection results from ADAPT and NGAFID models.
+
+    Args:
+        request: The HTTP request object.
+
+    Returns:
+        JsonResponse: A JSON response containing anomaly detection results for ADAPT and NGAFID.
+                      Returns an error message with status 404 if result files are not found,
+                      or status 500 if an unexpected error occurs.
+    """
     try:
         # Update path to match your project structure
         results_dir = Path('monitoring/ml_models/Models/results')  # Adjust this path
@@ -299,7 +407,17 @@ def get_anomaly_results(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def update_threshold(request):
-    """API endpoint to update anomaly detection threshold"""
+    """
+    API endpoint to update the anomaly detection threshold.
+
+    Args:
+        request: The HTTP request object containing the new threshold in the request body.
+
+    Returns:
+        JsonResponse: A JSON response indicating the success or failure of the update.
+                      Returns an error message with status 400 if the threshold is not provided,
+                      or status 500 if an unexpected error occurs.
+    """
     try:
         data = json.loads(request.body)
         threshold = data.get('threshold')
@@ -327,7 +445,17 @@ def update_threshold(request):
 
 @require_http_methods(["GET"])
 def get_historical_data(request):
-    """API endpoint to get historical anomaly data"""
+    """
+    API endpoint to get historical anomaly data within a specified date range.
+
+    Args:
+        request: The HTTP request object containing 'start' and 'end' query parameters.
+
+    Returns:
+        JsonResponse: A JSON response containing historical anomaly data for ADAPT and NGAFID.
+                      Returns an error message with status 400 if start or end dates are not provided,
+                      or status 500 if an unexpected error occurs.
+    """
     try:
         start_date = request.GET.get('start')
         end_date = request.GET.get('end')
@@ -354,6 +482,9 @@ def get_historical_data(request):
         )
 
 class FlightListView(generics.ListAPIView):
+    """
+    API view to list Flight instances with filtering and ordering capabilities.
+    """
     queryset = Flight.objects.prefetch_related('stats').all().order_by('master_index')  # Add ordering
     serializer_class = FlightSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
@@ -362,7 +493,22 @@ class FlightListView(generics.ListAPIView):
     ordering_fields = ['date_diff', 'flight_length']
 
 class FlightDetailView(APIView):
+    """
+    API view to retrieve details for a specific Flight instance.
+    """
     def get(self, request, flight_id):
+        """
+        Retrieves a single Flight instance by its master_index.
+
+        Args:
+            request: The HTTP request object.
+            flight_id (int): The master_index of the Flight to retrieve.
+
+        Returns:
+            Response: A DRF Response containing the serialized Flight data.
+                      Returns a 404 response if the Flight is not found,
+                      or a 500 response if an unexpected error occurs.
+        """
         try:
             flight = Flight.objects.prefetch_related('stats').get(master_index=flight_id)
             serializer = FlightSerializer(flight)
@@ -375,10 +521,19 @@ class FlightDetailView(APIView):
             return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def home_view(request):
+    """Renders the home HTML page."""
     return render(request, 'monitoring/home.html')
 
 def handle_nan_values(data):
-    """Recursively replace NaN values with None in a dictionary or list."""
+    """
+    Recursively replace NaN values with None in a dictionary or list.
+
+    Args:
+        data: The data structure (dict or list) to process.
+
+    Returns:
+        The data structure with NaN values replaced by None.
+    """
     if isinstance(data, dict):
         return {k: handle_nan_values(v) for k, v in data.items()}
     elif isinstance(data, list):
